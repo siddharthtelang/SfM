@@ -1,6 +1,10 @@
 # SfM (Structure from Motion - Classical Approach)
 3D scene reconstruction and camera pose estimation given images from different views (Structure from Motion)
 
+<p align="center">
+<img src="Data/sfm.png"/>
+</p>
+
 # Topics Covered
 - Feature Matching and Outlier rejection using - RANSAC
 - Estimating Fundamental Matrix
