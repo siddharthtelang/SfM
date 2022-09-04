@@ -14,6 +14,7 @@ feature_x, feature_y, \
     feature_flag, feature_descriptor = \
         extractMatchesFromFile(folder_name, total_images)
 
+loadF = True
 f_matrix = np.empty(shape=(total_images, total_images), dtype=object)
 filtered_feature_flag = np.zeros_like(feature_flag)
 
@@ -24,13 +25,18 @@ for i in tqdm(range(0, total_images-1)):
         pts2 = np.hstack((feature_x[idx, j].reshape((-1, 1)), feature_y[idx, j].reshape((-1, 1))))
         # showMatches(images[i], images[j], pts1, pts2,
         #            fileName=os.path.join(save_path, (str(i)+str(j)+".png")))
-        idx = np.array(idx).reshape(-1)
-        if len(idx) > 7:
-            final_f, final_indices = processInliners(pts1, pts2, idx)
-            print('At image : ',  i, j, '|| Number of inliers: ', len(final_indices), '/', len(idx))
-            f_matrix[i, j] = final_f
-            filtered_feature_flag[final_indices, i] = 1
-            filtered_feature_flag[final_indices, j] = 1
+        if not loadF:
+            idx = np.array(idx).reshape(-1)
+            if len(idx) > 7:
+                final_f, final_indices = processInliners(pts1, pts2, idx)
+                print('At image : ',  i, j, '|| Number of inliers: ', len(final_indices), '/', len(idx))
+                f_matrix[i, j] = final_f
+                filtered_feature_flag[final_indices, i] = 1
+                filtered_feature_flag[final_indices, j] = 1
+if not loadF:
+    np.save('filtered_feature_flag_.npy',filtered_feature_flag)
+    np.save('f_matrix_.npy',f_matrix)
+else:
+    filtered_feature_flag = np.load('filtered_feature_flag.npy', allow_pickle=True)
+    f_matrix = np.load('f_matrix.npy', allow_pickle=True)
 
-np.save('filtered_feature_flag_.npy',filtered_feature_flag)
-np.save('f_matrix_.npy',f_matrix)
