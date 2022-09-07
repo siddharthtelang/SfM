@@ -1,5 +1,7 @@
+from NonLinearTriangulation import NonLinearTriangulation
 from Utils.DataLoader import extractMatchesFromFile
 from Utils.ImageUtils import readImageSet, showMatches
+from Utils.MiscUtils import ReprojectionError
 from GetInlinersRANSAC import processInliners
 from GetEssentialMatrix import getEssentialMatrix
 from ExtractCameraPose import ExtractCameraPose
@@ -72,4 +74,15 @@ for i in range(len(R_set)):
 
 # disambiguate pose out of 4 combinations
 R2, T2, X = DisambiguatePose(R_set, T_set, pts_3D)
+X = X/X[:, 3].reshape(-1, 1)
 
+# calculate the reprojection error
+mean_error1 = ReprojectionError(X, x1, x2, R1, T1, R2, T2, K ) / X.shape[0]
+print('Mean error before NonLinearTriangulation: ', mean_error1)
+
+# Non-linear triangulation
+print('Performing Non-linear Triangulation')
+X_refined = NonLinearTriangulation(K, x1, x2, X, R1, T1, R2, T2)
+X_refined = X_refined / X_refined[:,3].reshape(-1,1)
+mean_error2 = ReprojectionError(X_refined, x1, x2, R1, T1, R2, T2, K) / X_refined.shape[0]
+print('Mean error after NonLinearTriangulation: ', mean_error2)
