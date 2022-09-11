@@ -7,6 +7,8 @@ from GetEssentialMatrix import getEssentialMatrix
 from ExtractCameraPose import ExtractCameraPose
 from LinearTriangulation import LinearTriangulation
 from DisambiguateCameraPose import DisambiguatePose
+from PnPRansac import PnPRANSAC
+from LinearPnP import reprojectionErrorPnP
 import numpy as np
 import os
 from tqdm import tqdm
@@ -77,12 +79,45 @@ R2, T2, X = DisambiguatePose(R_set, T_set, pts_3D)
 X = X/X[:, 3].reshape(-1, 1)
 
 # calculate the reprojection error
-mean_error1 = ReprojectionError(X, x1, x2, R1, T1, R2, T2, K ) / X.shape[0]
+mean_error1 = ReprojectionError(X, x1, x2, R1, T1, R2, T2, K )
 print('Mean error before NonLinearTriangulation: ', mean_error1)
 
 # Non-linear triangulation
 print('Performing Non-linear Triangulation')
 X_refined = NonLinearTriangulation(K, x1, x2, X, R1, T1, R2, T2)
 X_refined = X_refined / X_refined[:,3].reshape(-1,1)
-mean_error2 = ReprojectionError(X_refined, x1, x2, R1, T1, R2, T2, K) / X_refined.shape[0]
+mean_error2 = ReprojectionError(X_refined, x1, x2, R1, T1, R2, T2, K)
 print('Mean error after NonLinearTriangulation: ', mean_error2)
+
+# storing all info to register other cameras
+X_all = np.zeros((feature_x.shape[0], 3))
+camera_indices = np.zeros((feature_x.shape[0], 1), dtype = int) 
+X_found = np.zeros((feature_x.shape[0], 1), dtype = int)
+X_all[idx] = X[:, :3]
+X_found[idx] = 1
+camera_indices[idx] = 1
+# set X found to zero where the z is negative
+X_found[np.where(X_all[:, 2] < 0)] = 0
+print('Registered Cameras 1 and 2')
+
+T_set_, R_set_ = [], []
+T_set_.append(T1)
+R_set_.append(R1)
+T_set_.append(T2)
+R_set_.append(R2)
+
+print('Registering remaining cameras')
+for i in range(2, total_images):
+    print('\nRegistering Image: ', str(i+1), ' with reference camera')
+    # X 3D from previous registration and i-th camera correspondence
+    feature_idx_i = np.where(X_found[:, 0] & filtered_feature_flag[:, i])
+    # check if correspondences are less than 8
+    if len(feature_idx_i[0]) < 8:
+        print('Not enough correspondences, skip')
+        continue
+    pts_i = np.hstack((feature_x[feature_idx_i, i].reshape(-1,1), feature_y[feature_idx_i, i].reshape(-1,1)))
+    # get the actual X 3D correspondences between reference camera and i-th camera
+    X = X_all[feature_idx_i, :].reshape(-1,3)
+    # perform PnP
+    R_init, T_init = PnPRANSAC(K, pts_i, X, n_iterations=1000, error_thresh=5)
+    print('Reprojection error = ', reprojectionErrorPnP(X, pts_i, K, R_init, T_init))
