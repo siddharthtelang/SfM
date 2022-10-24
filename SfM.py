@@ -9,6 +9,7 @@ from LinearTriangulation import LinearTriangulation
 from DisambiguateCameraPose import DisambiguatePose
 from PnPRansac import PnPRANSAC
 from LinearPnP import reprojectionErrorPnP
+from NonLinearPnP import NonLinearPnP
 import numpy as np
 import os
 from tqdm import tqdm
@@ -121,3 +122,39 @@ for i in range(2, total_images):
     # perform PnP
     R_init, T_init = PnPRANSAC(K, pts_i, X, n_iterations=1000, error_thresh=5)
     print('Reprojection error = ', reprojectionErrorPnP(X, pts_i, K, R_init, T_init))
+
+    # perform Non-linear PnP
+    Ri, Ti = NonLinearPnP(K, pts_i, X, R_init, T_init)
+    print('Reprojection error after NonLinear PnP = ', reprojectionErrorPnP(X, pts_i, K, Ri, Ti))
+    T_set_.append(Ti)
+    R_set_.append(Ri)
+
+    #trianglulation with respect to camera i
+    for j in range(0, i):
+        idx_X_pts = np.where(filtered_feature_flag[:, j] & filtered_feature_flag[:, i])
+        if (len(idx_X_pts[0]) < 8):
+            continue
+
+        x1 = np.hstack((feature_x[idx_X_pts, j].reshape((-1, 1)), feature_y[idx_X_pts, j].reshape((-1, 1))))
+        x2 = np.hstack((feature_x[idx_X_pts, i].reshape((-1, 1)), feature_y[idx_X_pts, i].reshape((-1, 1))))
+
+        X = LinearTriangulation(K, T_set_[j], R_set_[j], Ti, Ri, x1, x2)
+        X = X/X[:,3].reshape(-1,1)
+        
+        LT_error = ReprojectionError(X, x1, x2, R_set_[j], T_set_[j], Ri, Ti, K)
+        
+        X = NonLinearTriangulation(K, x1, x2, X, R_set_[j], T_set_[j], Ri, Ti)
+        X = X/X[:,3].reshape(-1,1)
+        
+        nLT_error = ReprojectionError(X, x1, x2, R_set_[j], T_set_[j], Ri, Ti, K)
+        print("Error after linear triangulation: ", LT_error, " Error after non linear triangulation: ", nLT_error)
+
+        X_all[idx_X_pts] = X[:,:3]
+        X_found[idx_X_pts] = 1
+        
+        print("appended ", len(idx_X_pts[0]), " points between ", j ," and ", i)
+
+    np.save('optimized_C_set_', T_set_)
+    np.save('optimized_R_set_', R_set_)
+    np.save('optimized_X_all', X_all)
+    np.save('optimized_X_found', X_found)
